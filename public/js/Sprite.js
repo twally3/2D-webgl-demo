@@ -1,4 +1,6 @@
 import Material from './Material.js';
+import Point from './Point.js';
+import Matrix3 from './Matrix3.js';
 
 export default class Sprite {
 	/**
@@ -8,10 +10,14 @@ export default class Sprite {
 	 * @param {String} vs 
 	 * @param {String} fs 
 	 */
-	constructor(gl, img_url, vs, fs) {
+	constructor(gl, img_url, vs, fs, options = {}) {
 		this.gl = gl;
 		this.isLoaded = false;
 		this.material = new Material(gl, vs, fs);
+
+		this.size = new Point(64, 64);
+		if ('width' in options) this.size.x = options.width * 1;
+		if ('height' in options) this.size.y = options.height * 1;
 
 		this.image = new Image;
 		this.image.src = img_url;
@@ -44,30 +50,38 @@ export default class Sprite {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.image);
-
 		gl.bindTexture(gl.TEXTURE_2D, null);
+
+		this.uv_x = this.size.x / this.image.width;
+		this.uv_y = this.size.y / this.image.height;
 
 		this.tex_buff = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.tex_buff);
-		gl.bufferData(gl.ARRAY_BUFFER, Sprite.createRectArray(), gl.STATIC_DRAW);
+		gl.bufferData(gl.ARRAY_BUFFER, Sprite.createRectArray(0, 0, this.uv_x, this.uv_y), gl.STATIC_DRAW);
 
 		this.geo_buff = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.geo_buff);
-		gl.bufferData(gl.ARRAY_BUFFER, Sprite.createRectArray(), gl.STATIC_DRAW);
+		gl.bufferData(gl.ARRAY_BUFFER, Sprite.createRectArray(0, 0, this.size.x, this.size.y), gl.STATIC_DRAW);
 
 		this.aPositionLoc = gl.getAttribLocation(this.material.program, 'a_position');
 		this.aTexcoordLoc = gl.getAttribLocation(this.material.program, 'a_texCoord');
+		
 		this.uImageLoc = gl.getUniformLocation(this.material.program, 'u_image');
+		this.uFrameLoc = gl.getUniformLocation(this.material.program, 'u_frame');
+		this.uWorldLoc = gl.getUniformLocation(this.material.program, 'u_world');
+		this.uObjectLoc = gl.getUniformLocation(this.material.program, 'u_object');
 		
 		gl.useProgram(null);
 		this.isLoaded = true;
 	}
 
-	render() {
+	render(position, frames) {
 		if (this.isLoaded) {
-			let gl = this.gl;
+			const gl = this.gl;
+			const frame_x = Math.floor(frames.x) * this.uv_x;
+			const frame_y = Math.floor(frames.y) * this.uv_y;
+			const oMat = new Matrix3().translate(position.x, position.y);
 
 			gl.useProgram(this.material.program);
 
@@ -82,6 +96,10 @@ export default class Sprite {
 			gl.bindBuffer(gl.ARRAY_BUFFER, this.geo_buff);
 			gl.enableVertexAttribArray(this.aPositionLoc);
 			gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0);
+
+			gl.uniform2f(this.uFrameLoc, frame_x, frame_y);
+			gl.uniformMatrix3fv(this.uWorldLoc, false, window.game.worldSpaceMatrix.getFloatArray());
+			gl.uniformMatrix3fv(this.uObjectLoc, false, oMat.getFloatArray());
 
 			gl.drawArrays(gl.TRIANGLE_STRIP, 0, 6);
 
