@@ -14,9 +14,13 @@ window.addEventListener('load', _ => {
 	loop();
 })
 
+let resizeTimer;
 window.addEventListener('resize', _ => {
-	window.game.resize(
-		window.innerWidth,
-		window.innerHeight
-	);
+	clearTimeout(resizeTimer);
+	resizeTimer = setTimeout(_ => {
+		window.game.resize(
+			window.innerWidth,
+			window.innerHeight
+		);
+	}, 250);
 });
